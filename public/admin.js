@@ -167,7 +167,7 @@ $('#newT').onclick = () => formDialog('New training', [['title', 'Training name'
 });
 
 // ---- forms ----
-const IMG = { logo1: ['Left logo on the website', 'image/png', 1100], logo2: ['Middle logo on the website', 'image/png', 1100], logo3: ['Right logo on the website', 'image/png', 1100], signature: ['Signature above Sumit Shah (dark ink on white paper; it prints in white)', 'image/png', 900] };
+const IMG = { logo1: ['Left logo on the website', 'image/png', 1100], logo2: ['Middle logo on the website', 'image/png', 1100], logo3: ['Right logo on the website', 'image/png', 1100] };
 function fillForms() {
   const t = T(), link = `${S.base}/r/${t.slug}`, s = S.settings;
   $('#link').textContent = link;
@@ -205,16 +205,6 @@ function upload(kind, file) {
     const c = el('canvas', { width: Math.round(im.naturalWidth * k), height: Math.round(im.naturalHeight * k) });
     const x = c.getContext('2d');
     x.drawImage(im, 0, 0, c.width, c.height);
-    if (kind === 'signature') {
-      // The certificate is dark, so ink becomes white and paper becomes transparent.
-      const px = x.getImageData(0, 0, c.width, c.height), d = px.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const light = (0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]) / 255;
-        d[i + 3] = Math.min(1, Math.max(0, (0.8 - light) * 1.8)) * d[i + 3];
-        d[i] = d[i + 1] = d[i + 2] = 255;
-      }
-      x.putImageData(px, 0, 0);
-    }
     URL.revokeObjectURL(url);
     try { await api(`${A}/image/${kind}`, { method: 'PUT', body: { image: c.toDataURL(type, 0.92) } }); await refresh(); fillForms(); preview(); toast('Image saved'); } catch (e) { fail(e); }
   };

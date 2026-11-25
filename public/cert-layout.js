@@ -1,7 +1,7 @@
-// Where the participant's details go on the supplied certificate (2800 x 1980), shared by the PDF and the preview.
-export const SHEET = { w: 2800, h: 1980 };
-export const PHOTO = { w: 618, h: 794 };
-const TILT = { rot: -3.5, cx: 532.7, cy: 903.6 };
+// Where the photo and name go on the supplied certificate (2160 x 2700), shared by the PDF and the preview.
+export const SHEET = { w: 2160, h: 2700 };
+export const PHOTO = { w: 1484, h: 1430 };
+const TILT = { rot: -2.5, cx: 1070.6, cy: 1226.1 };
 // Great Vibes has no Hindi letters, so Hindi names use a Hindi handwriting face.
 export const fontFor = (f, t) => (/\p{Script=Devanagari}/u.test(t) ? 'hand' : f);
 
@@ -11,18 +11,14 @@ export function niceName(n) {
   return n.toLowerCase().replace(/(^|[\s.'’(-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
 }
 
-/** d: {name, photo: bool, signature: bool}; measure(text, font, size) -> width */
+/** d: {name, photo: bool}; measure(text, font, size) -> width */
 export function layout(d, measure) {
   const out = [];
-  if (d.photo) {
-    out.push({ type: 'image', key: 'photo', x: TILT.cx - PHOTO.w / 2, y: TILT.cy - PHOTO.h / 2, ...PHOTO, cover: true, ...TILT });
-    out.push({ type: 'image', key: 'tape', x: 404, y: 418, w: 256, h: 108 });
-  }
+  if (d.photo) out.push({ type: 'image', key: 'photo', x: TILT.cx - PHOTO.w / 2, y: TILT.cy - PHOTO.h / 2, ...PHOTO, cover: true, ...TILT });
   const text = d.name ? niceName(d.name) : 'Your name';
   const font = fontFor('script', text);
-  let size = font === 'hand' ? 126 : 196;
-  while (size > 40 && measure(text, font, size) > 1340) size -= 2;
-  out.push({ type: 'text', text, font, size, x: 1108, y: 990, color: '#FFFFFF', opacity: d.name ? 1 : 0.35 });
-  if (d.signature) out.push({ type: 'image', key: 'signature', x: 289, y: 1515, w: 460, h: 150 });
+  let size = font === 'hand' ? 98 : 144;
+  while (size > 40 && measure(text, font, size) > 1400) size -= 2;
+  out.push({ type: 'text', text, font, size, x: TILT.cx - measure(text, font, size) / 2, y: 2090, color: '#034E70', opacity: d.name ? 1 : 0.35, ...TILT });
   return out;
 }

@@ -44,7 +44,7 @@ UPDATE participants SET delivery='failed', delivery_error='The server stopped wh
 if (!db.prepare('PRAGMA table_info(sessions)').all().some((c) => c.name === 'role')) db.exec("ALTER TABLE sessions ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
 const q = (sql) => db.prepare(sql);
 const DEFAULTS = {
-  orgName: 'Think Health Care and Safety', pledge: 'I pledge to use my knowledge and skill of CPR to', pledgeBig: 'Save a Life.',
+  orgName: 'Think Health Care and Safety', pledge: 'I pledge to', pledgeBig: 'save a life.',
   mailUser: '', mailPass: '', mailHost: '', mailSubject: 'Congratulations, {name}! Your {training} certificate is here',
   mailBody: `Congratulations on learning {training} at {event} on {date}. You are now one of the people who can step forward when a heart stops.
 

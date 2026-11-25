@@ -53,12 +53,12 @@ export function drawCert(box, d) {
     const items = layout({ name: d.name, photo: Boolean(d.photo) }, measure);
     const src = (k) => (k === 'photo' ? d.photo : `/static/art/${k}.png?v=6`);
     box.replaceChildren(svgEl('svg', { viewBox: `0 0 ${SHEET.w} ${SHEET.h}`, role: 'img', 'aria-label': 'Certificate preview' },
-      svgEl('image', { href: '/static/art/cert.jpg?v=6', width: SHEET.w, height: SHEET.h }),
+      svgEl('image', { href: '/static/art/cert.jpg?v=7', width: SHEET.w, height: SHEET.h }),
       ...items.map((i) => {
         const transform = i.rot ? `rotate(${i.rot} ${i.cx} ${i.cy})` : null;
         if (i.type === 'image') return svgEl('image', { href: src(i.key), x: i.x, y: i.y, width: i.w, height: i.h, preserveAspectRatio: i.cover ? 'xMidYMin slice' : 'xMidYMid meet', transform });
         const [, slant, w, fam] = /^(italic )?(\d+) 1px (.+)$/.exec(FACE[i.font]);
-        return svgEl('text', { x: i.x, y: i.y, 'font-family': fam, 'font-weight': w, 'font-style': slant ? 'italic' : null, 'font-size': i.size, fill: i.color, 'fill-opacity': i.opacity, 'xml:space': 'preserve' }, i.text);
+        return svgEl('text', { x: i.x, y: i.y, 'font-family': fam, 'font-weight': w, 'font-style': slant ? 'italic' : null, 'font-size': i.size, fill: i.color, 'fill-opacity': i.opacity, transform, 'xml:space': 'preserve' }, i.text);
       })));
   };
   paint();
