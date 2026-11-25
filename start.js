@@ -30,7 +30,7 @@ function startTunnel() {
     found = true;
     url = m[0];
     fs.writeFileSync(path.join(DATA, 'public-link.txt'), url + '\n');
-    console.log(`\n  PARTICIPANT LINK : ${url}\n  PHOTO STATION    : ${url}/staff\n  ADMIN PAGE       : ${url}/admin\n\n  Keep this window open. Closing it takes the site offline.\n`);
+    console.log(`\n  PARTICIPANT LINK : ${url}\n  ADMIN PAGE       : ${url}/admin\n\n  Keep this window open. Closing it takes the site offline.\n`);
     if (site) site.kill(); else startSite();
   };
   tunnel.stdout.on('data', read);
