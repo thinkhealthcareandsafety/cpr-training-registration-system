@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPR Training Registration System admin</title><link rel="stylesheet" href="/static/styles.css"><link rel="icon" href="/static/icon.svg"></head>
+<body>
+<form id="login" class="login stack" hidden><h1>Training admin</h1><div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div><p class="formerr" id="loginErr" role="alert"></p><button class="btn primary">Sign in</button></form>
+<div id="app" hidden>
+  <header class="top"><div class="wrap"><h1>Training admin</h1><div class="row"><select id="pick" aria-label="Training"></select><button class="btn small" id="newT">New training</button><button class="btn small" id="out">Sign out</button></div></div></header>
+  <main class="awrap">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <section id="t-people">
+      <div class="figs"><span><b id="nReg">0</b>registered</span><span><b id="nDone">0</b>photo added</span><span><b id="nSent">0</b>emailed</span></div>
+      <p class="state note" id="waNote" hidden></p>
+      <div class="tools"><input id="find" type="search" placeholder="Search name, email or phone" aria-label="Search participants"><button class="btn" id="waiting" hidden></button><a class="btn" id="csv">Export CSV</a></div>
+      <div class="tbl"><table id="ptable"><thead><tr><th>Photo</th><th>Participant</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table><p class="empty" id="none" hidden></p></div>
+    </section>
+    <section id="t-share" class="split" hidden>
+      <div class="sheet stack"><h2>Registration link</h2><p class="link" id="link"></p><div class="row"><button class="btn" id="copy">Copy link</button><a class="btn" id="open" target="_blank" rel="noopener">Open</a></div><img class="qr" id="qr" alt="QR code for the registration link"><div><a class="btn primary" id="qrdl">Download QR code</a></div></div>
+      <form class="sheet stack" id="tform"><h2>Training details</h2>
+        <div class="field"><label for="ttitle">Training name</label><input id="ttitle" maxlength="140" required></div>
+        <div class="two"><div class="field"><label for="tdate">Date</label><input id="tdate" type="date" required></div><div class="field"><label for="tvenue">Event name</label><input id="tvenue" maxlength="140"></div></div>
+        <label class="check"><input type="checkbox" id="topen"><span>Registration is open</span></label>
+        <p class="formerr"></p><button class="btn primary">Save training</button></form>
+    </section>
+    <section id="t-cert" class="split" hidden>
+      <form class="sheet stack" id="cform"><h2>Certificate</h2>
+        <div class="two"><div class="field"><label for="pledge">Tagline</label><input id="pledge" data-s maxlength="160"></div><div class="field"><label for="pledgeBig">Tagline, large words</label><input id="pledgeBig" data-s maxlength="160"></div></div>
+        <div class="field"><label for="orgName">Organisation name</label><input id="orgName" data-s maxlength="160"></div>
+        <p class="hint">The tagline, organisation name and logos here are used on the website and in emails. The certificate uses your supplied design, so its wording, date and logos are fixed. Only the name, photo and signature are added to it.</p>
+        <div id="imgs" class="stack"></div>
+        <p class="formerr"></p><button class="btn primary">Save certificate</button></form>
+      <div class="stack"><h2>Preview</h2><iframe class="pdf" id="pdf" title="Certificate preview"></iframe><p class="hint"><a id="pdfOpen" target="_blank" rel="noopener">Open the preview in a new tab</a>. The PDF of a certificate already issued keeps its design unless you edit that participant.</p></div>
+    </section>
+    <section id="t-mail" class="split" hidden>
+      <div class="stack">
+      <form class="sheet stack" id="mform"><h2>Sending account</h2><p><span class="pill" id="mailState"></span></p>
+        <div class="field"><label for="mailUser">Email address</label><input id="mailUser" type="email" maxlength="120" autocomplete="off"></div>
+        <div class="field"><label for="mailPass">App password</label><input id="mailPass" type="password" autocomplete="new-password"><span class="hint" id="passHint"></span></div>
+        <div class="field"><label for="mailHost">Mail server</label><input id="mailHost" maxlength="120" autocomplete="off"><span class="hint">Leave blank to find it automatically</span></div>
+        <p class="formerr"></p><div class="row"><button class="btn primary" id="mgo">Connect and send test</button><button type="button" class="btn danger" id="mailOff">Disconnect</button></div></form>
+      <form class="sheet stack" id="bform"><h2>Email text</h2>
+        <div class="field"><label for="mailSubject">Subject</label><input id="mailSubject" maxlength="160"></div>
+        <div class="field"><label for="mailBody">Message</label><textarea id="mailBody" maxlength="2500" rows="14"></textarea><span class="hint">{name}, {training}, {date} and {event} are filled in for each person</span></div>
+        <p class="formerr"></p><button class="btn primary">Save email text</button></form></div>
+      <div class="sheet stack"><h2>Get a free app password</h2><h3>Gmail or Google Workspace</h3><ol><li>Open <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">your Google account security page</a> and turn on 2-Step Verification.</li><li>Open <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App passwords</a>, type any name and press Create.</li><li>Copy the 16 letters into App password here, then press Connect and send test.</li></ol><p class="hint">If App passwords is missing on a company account, your Google Workspace administrator has to allow it.</p><h3>Zoho Mail</h3><ol><li>Open <a href="https://accounts.zoho.in/home#security/app_password" target="_blank" rel="noopener">Zoho app passwords</a> and generate one.</li><li>Paste it here. Some free Zoho plans do not allow sending from other apps.</li></ol><p class="hint">The account is saved only if the test email goes through. It is sent to the same address. Each account has a daily sending limit set by its provider.</p></div>
+    </section>
+    <section id="t-pw" class="split" hidden><form class="sheet stack" id="pform"><h2>Admin password</h2><div class="field"><label for="npw">New password</label><input id="npw" type="password" autocomplete="new-password" minlength="10" required><span class="hint">At least 10 characters. Every other signed-in device is signed out.</span></div><p class="formerr"></p><button class="btn primary">Change admin password</button></form></section>
+  </main>
+</div>
+<dialog id="dlg"></dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+<script type="module" src="/static/admin.js"></script>
+</body></html>

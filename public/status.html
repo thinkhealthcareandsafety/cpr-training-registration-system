@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CPR Training Registration System</title><link rel="stylesheet" href="/static/styles.css"><link rel="icon" href="/static/icon.svg"></head>
+<body>
+<div class="logos" id="logoBar" hidden><div class="wrap" id="logos"></div></div>
+<header class="hero"><div class="wrap"><div class="org" id="org"></div><h1 id="title">Your certificate</h1><p class="meta" id="meta"></p><p class="tag" id="tag"></p></div></header>
+<main class="wrap cols">
+  <section class="sheet stack">
+    <div class="state" id="state" role="status"><b id="stTitle">Loading</b><span id="stMsg"></span></div>
+    <div class="stack" id="files" hidden>
+      <a class="btn go wide" id="pdf">Download certificate (PDF)</a>
+      <a class="btn wide" id="jpg">Download photo</a>
+    </div>
+    <p class="hint" id="save" hidden>Keep this page or bookmark it. It changes to your certificate as soon as your photo is added.</p>
+  </section>
+  <div class="side sticky"><div id="cert" class="cert"></div></div>
+</main>
+<script type="module" src="/static/status.js"></script>
+</body></html>
