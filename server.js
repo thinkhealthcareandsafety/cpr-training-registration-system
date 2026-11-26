@@ -44,7 +44,7 @@ UPDATE participants SET delivery='failed', delivery_error='The server stopped wh
 if (!db.prepare('PRAGMA table_info(sessions)').all().some((c) => c.name === 'role')) db.exec("ALTER TABLE sessions ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
 const q = (sql) => db.prepare(sql);
 const DEFAULTS = {
-  orgName: 'Think Health Care and Safety', pledge: 'I pledge to', pledgeBig: 'save a life.',
+  orgName: 'Think Health Care and Safety', pledge: 'I pledge to', pledgeBig: 'save a life.', watermark: 'white',
   mailUser: '', mailPass: '', mailHost: '', mailSubject: 'Congratulations, {name}! Your {training} certificate is here',
   mailBody: `Congratulations on learning {training} at {event} on {date}. You are now one of the people who can step forward when a heart stops.
 
@@ -198,7 +198,7 @@ app.get('/staff', (req, res) => res.redirect('/admin'));
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 // participant API
-const PUBLIC = ['orgName', 'pledge', 'pledgeBig'];
+const PUBLIC = ['orgName', 'pledge', 'pledgeBig', 'watermark'];
 const brandInfo = () => {
   const s = getSettings();
   return { ...Object.fromEntries(PUBLIC.map((k) => [k, s[k]])), logos: LOGOS.filter((k) => brandFile(k)) };
@@ -375,6 +375,7 @@ admin.put('/settings', (req, res) => {
     let v = b[k];
     if (typeof DEFAULTS[k] === 'boolean') v = v === true;
     else if (k === 'mailBody') v = String(v ?? '').replace(/\r\n?/g, '\n').replace(/[^\S\n]+/g, ' ').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2500);
+    else if (k === 'watermark') { if (!['white', 'red', 'none'].includes(v)) continue; }
     else v = text(v, 160);
     if (REQUIRED.includes(k) && !v) throw new Bad('This field cannot be empty.', k);
     next.push([k, v]);

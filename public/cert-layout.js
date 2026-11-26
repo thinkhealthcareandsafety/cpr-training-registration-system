@@ -11,14 +11,20 @@ export function niceName(n) {
   return n.toLowerCase().replace(/(^|[\s.'’(-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
 }
 
-/** d: {name, photo: bool}; measure(text, font, size) -> width */
+const WM = { w: 330, h: Math.round(330 * 0.815000) };
+/** d: {name, photo: bool, watermark: 'white' | 'red' | 'none'}; measure(text, font, size) -> width */
 export function layout(d, measure) {
   const out = [];
-  if (d.photo) out.push({ type: 'image', key: 'photo', x: TILT.cx - PHOTO.w / 2, y: TILT.cy - PHOTO.h / 2, ...PHOTO, cover: true, ...TILT });
+  if (d.photo) {
+    out.push({ type: 'image', key: 'photo', x: TILT.cx - PHOTO.w / 2, y: TILT.cy - PHOTO.h / 2, ...PHOTO, cover: true, ...TILT });
+    // The CPR heart sits in the lower right corner of the photo, turned with it.
+    if (d.watermark === 'white' || d.watermark === 'red') out.push({ type: 'image', key: 'watermark-' + d.watermark, x: TILT.cx + PHOTO.w / 2 - WM.w - 46, y: TILT.cy + PHOTO.h / 2 - WM.h - 46, ...WM, ...TILT });
+  }
   const text = d.name ? niceName(d.name) : 'Your name';
   const font = fontFor('script', text);
-  let size = font === 'hand' ? 98 : 144;
-  while (size > 40 && measure(text, font, size) > 1400) size -= 2;
-  out.push({ type: 'text', text, font, size, x: TILT.cx - measure(text, font, size) / 2, y: 2090, color: '#034E70', opacity: d.name ? 1 : 0.35, ...TILT });
+  let size = font === 'hand' ? 92 : 132;
+  while (size > 36 && measure(text, font, size) > 1000) size -= 2;
+  // Sits on the "I, ____" line, which slopes with the photo.
+  out.push({ type: 'text', text, font, size, x: 1160 - measure(text, font, size) / 2, y: 2156, color: '#034E70', opacity: d.name ? 1 : 0.35, rot: -2.5, cx: 1160, cy: 2156 });
   return out;
 }

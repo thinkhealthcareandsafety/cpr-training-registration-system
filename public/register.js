@@ -23,6 +23,19 @@ function clear() {
 }
 
 $('#name').addEventListener('input', draw);
+// Organisers sign in from this same page and go to the dashboard.
+$('#orgLogin').onclick = async () => {
+  try { const r = await fetch('/api/admin/state'); if (r.ok) { location.href = '/admin'; return; } } catch {}
+  $('#loginErr').textContent = '';
+  $('#loginDlg').showModal();
+  $('#opw').focus();
+};
+$('#loginCancel').onclick = () => $('#loginDlg').close();
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try { await api('/api/admin/login', { method: 'POST', body: { password: $('#opw').value } }); location.href = '/admin'; }
+  catch (x) { $('#loginErr').textContent = x.message; }
+});
 $('#form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   clear();
