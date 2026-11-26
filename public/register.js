@@ -1,8 +1,8 @@
-import { $, api, header, drawCert } from './common.js';
+import { $, el, api, header, drawCert } from './common.js';
 
 const slug = location.pathname.split('/')[2] || '';
 const key = 'reg-' + slug;
-let info = null;
+let info = null, picked = null, findT;
 const draw = () => info && drawCert($('#cert'), { ...info, name: $('#name').value.trim() });
 function closed(title, msg) {
   $('#closed').hidden = false;
@@ -24,6 +24,29 @@ function clear() {
 }
 
 $('#name').addEventListener('input', draw);
+// Guest list lookup: only a few matching names come back, with the email hidden.
+$('#findName').addEventListener('input', () => {
+  clearTimeout(findT);
+  const term = $('#findName').value.trim();
+  if (term.length < 3) { $('#found').replaceChildren(); $('#foundHint').textContent = ''; return; }
+  findT = setTimeout(async () => {
+    try {
+      const list = await api(`/api/find/${encodeURIComponent(slug)}?q=${encodeURIComponent(term)}`);
+      if ($('#findName').value.trim() !== term) return;
+      $('#found').replaceChildren(...list.map((p) => el('button', { type: 'button', role: 'listitem', class: 'pick', onclick: () => pick(p) }, el('b', {}, p.name), el('small', {}, p.hint))));
+      $('#foundHint').textContent = list.length ? 'Tap your name.' : 'No match. Fill in the form below to register.';
+    } catch { /* lookup is optional */ }
+  }, 300);
+});
+function pick(p) {
+  picked = p;
+  $('#name').value = p.name;
+  draw();
+  $('#found').replaceChildren();
+  $('#findName').value = '';
+  $('#foundHint').textContent = `Found you. Now enter your email (${p.hint}) to confirm, then press Register.`;
+  $('#email').focus();
+}
 // Organisers sign in from this same page and go to the dashboard.
 $('#orgLogin').onclick = async () => {
   try { const r = await fetch('/api/admin/state'); if (r.ok) { location.href = '/admin'; return; } } catch {}
@@ -43,12 +66,11 @@ $('#form').addEventListener('submit', async (ev) => {
   const v = (id) => $('#' + id).value.trim();
   if (!v('name')) return setErr('name', 'Enter your full name.');
   if (!v('email')) return setErr('email', 'Enter your email address.');
-  if (!v('phone')) return setErr('phone', 'Enter your phone number.');
   if (!$('#consent').checked) return setErr('consent', 'Tick the box to agree before registering.');
   $('#go').disabled = true;
   $('#go').textContent = 'Registering…';
   try {
-    const r = await api('/api/register/' + encodeURIComponent(slug), { method: 'POST', body: { name: v('name'), email: v('email'), cc: v('cc'), phone: v('phone'), consent: true } });
+    const r = await api('/api/register/' + encodeURIComponent(slug), { method: 'POST', body: { name: v('name'), email: v('email'), cc: v('cc'), phone: v('phone'), consent: true, listId: picked?.id } });
     try { localStorage.setItem(key, r.token); } catch {}
     location.href = '/p/' + r.token;
   } catch (e) {
@@ -64,7 +86,10 @@ try {
   header(info.brand, info.training);
   draw();
   if (!info.training.open) closed('Registration closed', 'Registration for this training is closed. If you already registered, open the link you saved.');
-  else $('#form').hidden = false;
+  else {
+    $('#form').hidden = false;
+    $('#lookup').hidden = false;
+  }
   let saved = null;
   try { saved = localStorage.getItem(key); } catch {}
   if (saved) { $('#mine').hidden = false; $('#mineLink').href = '/p/' + encodeURIComponent(saved); }

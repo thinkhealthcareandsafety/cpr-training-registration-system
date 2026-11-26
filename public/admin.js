@@ -78,12 +78,12 @@ function rows() {
 }
 const act = (label, fn, cls = '') => el('button', { type: 'button', class: 'btn small ' + cls, onclick: fn }, label);
 function row(p) {
-  const [label, cls] = p.completed ? STATUS[p.delivery] || STATUS.ready : ['Photo needed', ''];
+  const [label, cls] = p.completed ? STATUS[p.delivery] || STATUS.ready : p.checked_in ? ['Photo needed', ''] : ['Imported, not checked in', ''];
   const photo = `/file/${p.token}/photo.jpg?view`;
   return el('tr', {},
     el('td', { class: 'c-photo' }, p.has_photo ? el('a', { href: photo, target: '_blank' }, el('img', { class: 'thumb', src: photo, alt: 'Photo of ' + p.name })) : el('small', {}, 'None')),
     el('td', {}, el('b', {}, p.name), el('small', {}, p.email)),
-    el('td', {}, '+' + p.phone),
+    el('td', {}, p.phone ? '+' + p.phone : el('small', {}, 'None')),
     el('td', {}, el('span', { class: 'pill ' + cls }, label), p.delivery === 'failed' ? el('small', {}, p.delivery_error) : null, p.cert_no ? el('small', {}, p.cert_no) : null),
     el('td', {}, el('div', { class: 'acts' },
       act(p.completed ? 'Replace photo' : 'Add photo and send', () => takePhoto(p), p.completed ? '' : 'go'),
@@ -117,9 +117,103 @@ function takePhoto(p) {
   const saved = el('button', { type: 'button', class: 'btn wide', hidden: !p.has_photo || Boolean(p.completed), onclick: () => send({ useSaved: true }) }, 'Use the photo already saved');
   const cancel = el('button', { type: 'button', class: 'btn wide', onclick: () => d.close() }, 'Cancel');
   const cam = camera(box, (x) => { photo = x; save.hidden = !x; if (x) save.scrollIntoView({ block: 'nearest' }); }, 'environment');
-  const d = dialog(el('div', { class: 'stack' }, el('div', {}, el('h2', {}, niceName(p.name)), el('p', { class: 'hint link' }, `+${p.phone}, ${p.email}`)), box, err, save, saved, cancel));
+  const d = dialog(el('div', { class: 'stack' }, el('div', {}, el('h2', {}, niceName(p.name)), el('p', { class: 'hint link' }, [p.phone && '+' + p.phone, p.email].filter(Boolean).join(', '))), box, err, save, saved, cancel));
   d.addEventListener('close', () => cam.idle(), { once: true });
 }
+// ---- import a guest list (CSV, Excel, ODS, JSON or text) ----
+let xlsxReady = null;
+const loadXlsx = () => (xlsxReady ||= new Promise((ok, no) => { const s = el('script', { src: '/vendor/xlsx.js' }); s.onload = () => ok(window.XLSX); s.onerror = () => no(new Error('The file reader could not load. Check the connection and try again.')); document.head.append(s); }));
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+async function readTable(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.json')) {
+    let data = JSON.parse(await file.text());
+    if (!Array.isArray(data)) data = Object.values(data).find(Array.isArray) || [];
+    if (data.length && !Array.isArray(data[0])) { const keys = [...new Set(data.flatMap((o) => Object.keys(o || {})))]; return [keys, ...data.map((o) => keys.map((k) => o?.[k] ?? ''))]; }
+    return data;
+  }
+  const X = await loadXlsx();
+  const wb = X.read(await file.arrayBuffer(), { type: 'array', raw: false });
+  const sheet = wb.SheetNames.map((n) => wb.Sheets[n]).find((s) => s['!ref']) || wb.Sheets[wb.SheetNames[0]];
+  return X.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '', blankrows: false });
+}
+// Works out which column holds what, from the headings or, failing that, from the contents.
+function guessColumns(table) {
+  const head = (table[0] || []).map((h) => String(h).toLowerCase().trim());
+  const find = (re) => head.findIndex((h) => re.test(h));
+  const first = find(/first|given/), last = find(/last|surname|family/);
+  let cols = { name: head.findIndex((h, i) => i !== first && i !== last && /name|participant|attendee|guest|candidate/.test(h) && !/user ?name|company|organi[sz]ation|file/.test(h)), first, last, email: find(/e-?mail|mail id/), phone: find(/phone|mobile|contact|whats ?app|number|cell/) };
+  const hasHead = cols.email >= 0 || cols.name >= 0 || (cols.first >= 0 && cols.last >= 0);
+  const body = hasHead ? table.slice(1) : table;
+  if (cols.email < 0 || (cols.name < 0 && cols.first < 0)) {
+    const width = Math.max(...body.slice(0, 200).map((r) => r.length), 0), score = (fn) => [...Array(width).keys()].map((i) => body.slice(0, 200).filter((r) => fn(String(r[i] ?? '').trim())).length);
+    const e = score((v) => EMAIL.test(v)), ph = score((v) => v.replace(/\D/g, '').length >= 10 && !/[a-z@]/i.test(v)), nm = score((v) => /\p{L}{2,}/u.test(v) && !v.includes('@'));
+    const best = (arr, skip = []) => arr.reduce((b, v, i) => (!skip.includes(i) && v > 0 && v > (arr[b] ?? 0) ? i : b), -1);
+    if (cols.email < 0) cols.email = best(e);
+    if (cols.phone < 0) cols.phone = best(ph, [cols.email]);
+    if (cols.name < 0 && cols.first < 0) cols.name = best(nm, [cols.email, cols.phone]);
+  }
+  return { cols, hasHead };
+}
+function importDialog() {
+  const t = T();
+  const file = el('input', { type: 'file', id: 'impFile', accept: '.csv,.xlsx,.xls,.xlsm,.ods,.txt,.tsv,.json,.numbers' });
+  const status = el('div', { class: 'imp-sum', role: 'status' }), err = el('p', { class: 'formerr', role: 'alert' });
+  const map = el('div', { class: 'imp-map' });
+  const go = el('button', { type: 'button', class: 'btn primary', hidden: true }, 'Import');
+  let table = [], hasHead = false;
+  const pickers = {};
+  const rowsFrom = () => {
+    const c = Object.fromEntries(Object.entries(pickers).map(([k, s]) => [k, Number(s.value)]));
+    return (hasHead ? table.slice(1) : table).map((r, i) => {
+      const cell = (k) => (c[k] >= 0 ? String(r[c[k]] ?? '').trim() : '');
+      const name = c.name >= 0 ? cell('name') : [cell('first'), cell('last')].filter(Boolean).join(' ');
+      return { line: i + (hasHead ? 2 : 1), name, email: cell('email'), phone: cell('phone') };
+    }).filter((r) => r.name || r.email);
+  };
+  const preview = () => {
+    const rows = rowsFrom(), ok = rows.filter((r) => r.name && EMAIL.test(r.email)).length;
+    status.replaceChildren(el('b', {}, `${rows.length} people found in the file`), el('span', { class: 'hint' }, `${ok} have a name and a valid email. The rest are reported after importing.`));
+    go.hidden = !rows.length;
+    go.textContent = `Import ${rows.length} people into ${t.title}`;
+  };
+  file.onchange = async () => {
+    err.textContent = ''; status.replaceChildren(el('span', {}, 'Reading the file…')); map.replaceChildren(); go.hidden = true;
+    try {
+      table = (await readTable(file.files[0])).map((r) => (Array.isArray(r) ? r : [r]));
+      if (!table.length) throw new Error('The file is empty.');
+      const g = guessColumns(table); hasHead = g.hasHead;
+      const heads = (hasHead ? table[0] : table[0].map((_, i) => `Column ${i + 1}`)).map((h, i) => String(h || `Column ${i + 1}`));
+      const sel = (k, label) => { const s = el('select', { id: 'imp-' + k }, el('option', { value: -1 }, 'Not in file'), ...heads.map((h, i) => el('option', { value: i }, h))); s.value = g.cols[k]; s.onchange = preview; pickers[k] = s; return el('div', { class: 'field' }, el('label', { htmlFor: 'imp-' + k }, label), s); };
+      map.replaceChildren(sel('name', 'Full name'), ...(g.cols.name < 0 && g.cols.first >= 0 ? [sel('first', 'First name'), sel('last', 'Last name')] : []), sel('email', 'Email'), sel('phone', 'Phone (optional)'));
+      preview();
+    } catch (x) { status.replaceChildren(); err.textContent = x.message.startsWith('The ') ? x.message : 'That file could not be read. Save it as CSV or Excel and try again.'; }
+  };
+  go.onclick = async () => {
+    const rows = rowsFrom();
+    go.disabled = true; file.disabled = true; err.textContent = '';
+    const sum = { added: 0, already: 0, noPhone: 0, problems: [] };
+    try {
+      for (let i = 0; i < rows.length; i += 400) {
+        status.replaceChildren(el('b', {}, `Saving ${Math.min(i + 400, rows.length)} of ${rows.length}…`));
+        const r = await api(`${A}/trainings/${t.id}/import`, { method: 'POST', body: { rows: rows.slice(i, i + 400) } });
+        sum.added += r.added; sum.already += r.already; sum.noPhone += r.noPhone; sum.problems.push(...r.problems);
+      }
+      status.replaceChildren(...[el('b', {}, `${sum.added} people added and saved.`),
+        sum.already ? el('span', {}, `${sum.already} were already on the list, so they were skipped.`) : null,
+        sum.noPhone ? el('span', { class: 'hint' }, `${sum.noPhone} phone numbers were left out because they were not valid or were repeated.`) : null,
+        sum.problems.length ? el('span', { class: 'formerr' }, `${sum.problems.length} rows were not added: ` + sum.problems.slice(0, 12).map((p) => `row ${p.line} (${p.reason.replace(/\.$/, '')})`).join('; ') + (sum.problems.length > 12 ? '; and more.' : '.')) : null].filter(Boolean));
+      go.hidden = true;
+      await loadPeople();
+      toast(`${sum.added} people imported`);
+    } catch (x) { if (x.status === 401) return showLogin(); err.textContent = x.message; go.disabled = false; }
+    file.disabled = false;
+  };
+  dialog(el('div', { class: 'stack' }, el('h2', {}, 'Import guest list'),
+    el('p', { class: 'hint' }, 'Choose a CSV, Excel, ODS, JSON or text file with a name and email for each person. A phone column is optional. Everyone is saved straight away and shows as "Imported, not checked in" until they find their name on the registration page.'),
+    file, map, status, err, el('div', { class: 'row' }, go, el('button', { type: 'button', class: 'btn', onclick: () => $('#dlg').close() }, 'Close'))));
+}
+$('#importBtn').onclick = importDialog;
 async function resend(p) { try { await api(`${A}/participants/${p.id}/send`, { method: 'POST' }); await loadPeople(); } catch (e) { fail(e); } }
 async function copy(t) { try { await navigator.clipboard.writeText(t); toast('Link copied'); } catch { ask('Copy this link', t, null); } }
 
@@ -146,7 +240,7 @@ function formDialog(title, fields, ok, fn) {
     el('h2', {}, title), ...ins.map(([k, label, i]) => el('div', { class: 'field' }, el('label', { htmlFor: 'd-' + k }, label), i)), err,
     el('div', { class: 'row' }, el('button', { class: 'btn primary' }, ok), el('button', { type: 'button', class: 'btn', onclick: () => d.close() }, 'Cancel'))));
 }
-const edit = (p) => formDialog('Edit participant', [['name', 'Full name', p.name], ['email', 'Email', p.email, 'email'], ['phone', 'Phone with country code', '+' + p.phone, 'tel']], 'Save', async (v) => {
+const edit = (p) => formDialog('Edit participant', [['name', 'Full name', p.name], ['email', 'Email', p.email, 'email'], ['phone', 'Phone with country code (optional)', p.phone ? '+' + p.phone : '', 'tel']], 'Save', async (v) => {
   await api(`${A}/participants/${p.id}`, { method: 'PUT', body: v });
   toast(p.completed ? 'Saved. The certificate was updated.' : 'Saved');
   await loadPeople();

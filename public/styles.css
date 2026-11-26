@@ -127,6 +127,14 @@ dialog::backdrop { background: rgb(0 58 92 / .55); }
 ol { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
 @media (prefers-reduced-motion: no-preference) { .btn { transition: background .15s; } }
 .note { margin-bottom: 16px; }
+.lookup { padding: 14px; background: var(--wash); border-radius: 6px; }
+.found { display: grid; gap: 6px; }
+.found:empty { display: none; }
+.pick { display: flex; justify-content: space-between; gap: 10px; align-items: center; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font: 400 16px var(--body); color: var(--ink); cursor: pointer; }
+.pick:hover { border-color: var(--brand); }
+.pick small { color: var(--muted); }
+.imp-sum { display: grid; gap: 4px; }
+.imp-map { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 .foot { text-align: center; padding-block: 0 32px; }
 .linkbtn { background: none; border: 0; color: var(--muted); font: 600 15px var(--body); text-decoration: underline; cursor: pointer; padding: 8px; }
 .btn.go.small { min-height: 36px; font-size: 15px; }

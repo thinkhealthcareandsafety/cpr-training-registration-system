@@ -34,13 +34,28 @@ CREATE TABLE IF NOT EXISTS trainings (
   venue TEXT NOT NULL DEFAULT '', open INTEGER NOT NULL DEFAULT 1, created INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS participants (
   id INTEGER PRIMARY KEY, training_id INTEGER NOT NULL REFERENCES trainings(id), token TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, has_photo INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', has_photo INTEGER NOT NULL DEFAULT 0,
   created INTEGER NOT NULL, completed INTEGER, cert_no TEXT UNIQUE,
   delivery TEXT NOT NULL DEFAULT 'none', delivery_error TEXT NOT NULL DEFAULT '', delivery_at INTEGER,
-  UNIQUE (training_id, phone));
+  checked_in INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, expires INTEGER NOT NULL, role TEXT NOT NULL DEFAULT 'admin');
 UPDATE participants SET delivery='failed', delivery_error='The server stopped while sending. Check with the participant, then resend.' WHERE delivery='sending';
 `);
+// Older databases required a unique phone number. The phone is now optional, so the table is rebuilt once.
+if (!db.prepare('PRAGMA table_info(participants)').all().some((c) => c.name === 'checked_in')) {
+  db.exec(`BEGIN;
+  CREATE TABLE participants_new (
+    id INTEGER PRIMARY KEY, training_id INTEGER NOT NULL REFERENCES trainings(id), token TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', has_photo INTEGER NOT NULL DEFAULT 0,
+    created INTEGER NOT NULL, completed INTEGER, cert_no TEXT UNIQUE,
+    delivery TEXT NOT NULL DEFAULT 'none', delivery_error TEXT NOT NULL DEFAULT '', delivery_at INTEGER,
+    checked_in INTEGER NOT NULL DEFAULT 1);
+  INSERT INTO participants_new (id,training_id,token,name,email,phone,has_photo,created,completed,cert_no,delivery,delivery_error,delivery_at)
+    SELECT id,training_id,token,name,email,phone,has_photo,created,completed,cert_no,delivery,delivery_error,delivery_at FROM participants;
+  DROP TABLE participants; ALTER TABLE participants_new RENAME TO participants; COMMIT;`);
+}
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS participants_phone ON participants(training_id, phone) WHERE phone <> '';
+CREATE INDEX IF NOT EXISTS participants_email ON participants(training_id, email);`);
 if (!db.prepare('PRAGMA table_info(sessions)').all().some((c) => c.name === 'role')) db.exec("ALTER TABLE sessions ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
 const q = (sql) => db.prepare(sql);
 const DEFAULTS = {
@@ -108,7 +123,7 @@ const limit = (name, max, ms) => (req, res, next) => {
 };
 
 const text = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-function cleanPerson(b) {
+function cleanPerson(b, optionalPhone = true) {
   const name = text(b.name, 70).normalize('NFC');
   if (name.length < 2 || !/^[\p{Script=Latin}\p{Script=Devanagari}\p{M}‌‍ .,'’()-]+$/u.test(name) || !/\p{L}/u.test(name))
     throw new Bad('Enter your full name in English or Hindi letters.', 'name');
@@ -116,6 +131,7 @@ function cleanPerson(b) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Bad('Enter a valid email address, like name@example.com.', 'email');
   const cc = String(b.cc ?? '').replace(/\D/g, '');
   let num = String(b.phone ?? '').replace(/\D/g, '');
+  if (!num && optionalPhone) return { name, email, phone: '' };
   if (!cc || cc.length > 3) throw new Bad('Enter a country code, like 91.', 'phone');
   if (cc === '91') {
     if (num.length === 12 && num.startsWith('91')) num = num.slice(2);
@@ -187,6 +203,7 @@ const page = (f) => (req, res) => res.sendFile(f, { root: path.join(ROOT, 'publi
 const asset = (pkg) => express.static(path.join(ROOT, 'node_modules', '@fontsource', pkg, 'files'), { maxAge: '30d' });
 for (const f of ['mukta', 'figtree', 'great-vibes', 'kalam']) app.use(`/fonts/${f}`, asset(f));
 app.use('/static', express.static(path.join(ROOT, 'public'), { index: false }));
+app.get('/vendor/xlsx.js', (req, res) => res.sendFile('xlsx.full.min.js', { root: path.join(ROOT, 'node_modules', 'xlsx', 'dist'), maxAge: '7d' }));
 app.get('/', (req, res) => {
   const t = q('SELECT slug FROM trainings WHERE open=1 ORDER BY created DESC, id DESC').get();
   if (t) res.redirect(`/r/${t.slug}`); else page('register.html')(req, res);
@@ -227,12 +244,32 @@ app.post('/api/register/:slug', limit('reg', 300, 600000), (req, res) => {
   const b = req.body || {};
   const person = cleanPerson(b);
   if (b.consent !== true) throw new Bad('Tick the box to agree before registering.', 'consent');
-  if (q('SELECT 1 FROM participants WHERE training_id=? AND phone=?').get(t.id, person.phone))
+  // Someone on the imported guest list checks in by registering with the same email.
+  const listed = q('SELECT * FROM participants WHERE training_id=? AND email=? ORDER BY checked_in, id').get(t.id, person.email);
+  if (b.listId && (!listed || listed.id !== Number(b.listId)))
+    throw new Bad('This email does not match the guest list entry you picked. Enter the email you gave the organisers.', 'email');
+  if (listed?.checked_in) throw new Bad('This email is already registered for this training. Ask the trainer for your link.', 'email', 409);
+  if (person.phone && q('SELECT 1 FROM participants WHERE training_id=? AND phone=? AND id<>?').get(t.id, person.phone, listed?.id ?? 0))
     throw new Bad('This number is already registered for this training. Ask the trainer for your link.', 'phone', 409);
+  if (listed) {
+    q('UPDATE participants SET name=?, phone=CASE WHEN ?<>\'\' THEN ? ELSE phone END, checked_in=1 WHERE id=?').run(person.name, person.phone, person.phone, listed.id);
+    return res.status(201).json({ token: listed.token });
+  }
   const token = crypto.randomBytes(16).toString('base64url');
   q('INSERT INTO participants (training_id,token,name,email,phone,created) VALUES (?,?,?,?,?,?)')
     .run(t.id, token, person.name, person.email, person.phone, Date.now());
   res.status(201).json({ token });
+});
+// Guests can look up their own name on the imported list. Only a few names and a hidden email are shown.
+const maskEmail = (e) => { const [u, d = ''] = e.split('@'); const dot = d.lastIndexOf('.'); return `${u.slice(0, 2)}•••@${d.slice(0, 1)}•••${dot > 0 ? d.slice(dot) : ''}`; };
+app.get('/api/find/:slug', limit('find', 400, 600000), (req, res) => {
+  const t = q('SELECT * FROM trainings WHERE slug=?').get(req.params.slug);
+  if (!t) throw new Bad('This registration link is not valid.', null, 404);
+  const term = text(req.query.q, 60).toLowerCase();
+  if (term.replace(/\s/g, '').length < 3) return res.json([]);
+  const like = '%' + term.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
+  res.json(q("SELECT id, name, email FROM participants WHERE training_id=? AND checked_in=0 AND lower(name) LIKE ? ESCAPE '\\' ORDER BY name LIMIT 6").all(t.id, like)
+    .map((p) => ({ id: p.id, name: p.name, hint: maskEmail(p.email) })));
 });
 const byToken = (req) => {
   const p = q('SELECT * FROM participants WHERE token=?').get(req.params.token);
@@ -313,12 +350,41 @@ admin.put('/participants/:id', async (req, res) => {
   const p = getP(req.params.id);
   const full = String(req.body?.phone ?? '').replace(/\D/g, '');
   // The admin edits the full number; 10 digits are taken as Indian.
-  const num = full.length === 10 ? { cc: '91', phone: full } : { cc: full.slice(0, 2), phone: full.slice(2) };
+  const num = !full ? { cc: '91', phone: '' } : full.length === 10 ? { cc: '91', phone: full } : { cc: full.slice(0, 2), phone: full.slice(2) };
   const n = cleanPerson({ ...req.body, ...num });
-  if (q('SELECT 1 FROM participants WHERE training_id=? AND phone=? AND id<>?').get(p.training_id, n.phone, p.id)) throw new Bad('Another participant already uses this number.', 'phone', 409);
+  if (n.phone && q('SELECT 1 FROM participants WHERE training_id=? AND phone=? AND id<>?').get(p.training_id, n.phone, p.id)) throw new Bad('Another participant already uses this number.', 'phone', 409);
   q('UPDATE participants SET name=?,email=?,phone=? WHERE id=?').run(n.name, n.email, n.phone, p.id);
   if (p.completed) await buildCert(getP(p.id));
   res.json({ ok: true });
+});
+// Adds a guest list in one go. Rows are checked one by one; people already on the list are skipped.
+admin.post('/trainings/:id/import', (req, res) => {
+  const t = getT(req.params.id);
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 2000) : [];
+  const out = { added: 0, already: 0, noPhone: 0, problems: [] };
+  const seen = q('SELECT email, phone FROM participants WHERE training_id=?').all(t.id);
+  const emails = new Set(seen.map((p) => p.email)), phones = new Set(seen.map((p) => p.phone).filter(Boolean));
+  const add = q('INSERT INTO participants (training_id,token,name,email,phone,created,checked_in) VALUES (?,?,?,?,?,?,0)');
+  db.exec('BEGIN');
+  try {
+    for (const r of rows) {
+      const line = Number(r?.line) || 0;
+      let person;
+      try {
+        const digits = String(r?.phone ?? '').replace(/\D/g, '');
+        const ph = digits.length === 10 ? { cc: '91', phone: digits } : digits.length === 12 && digits.startsWith('91') ? { cc: '91', phone: digits.slice(2) } : { cc: '91', phone: '' };
+        person = cleanPerson({ name: r?.name, email: r?.email, ...ph });
+        if (digits && !person.phone) out.noPhone++;
+      } catch (e) { out.problems.push({ line, reason: e.message.replace('your ', '').replace('Enter ', 'Needs ') }); continue; }
+      if (emails.has(person.email)) { out.already++; continue; }
+      if (person.phone && phones.has(person.phone)) { person.phone = ''; out.noPhone++; }
+      add.run(t.id, crypto.randomBytes(16).toString('base64url'), person.name, person.email, person.phone, Date.now() + out.added);
+      emails.add(person.email); if (person.phone) phones.add(person.phone);
+      out.added++;
+    }
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  res.json(out);
 });
 admin.delete('/participants/:id', (req, res) => {
   const p = getP(req.params.id);
@@ -359,9 +425,9 @@ admin.get('/trainings/:id/export.csv', (req, res) => {
   const cell = (v) => { let x = String(v ?? ''); if (/^[=+\-@\t\r]/.test(x)) x = "'" + x; return `"${x.replace(/"/g, '""')}"`; };
   const when = (n) => (n ? new Date(n).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '');
   const rows = q('SELECT * FROM participants WHERE training_id=? ORDER BY created').all(req.params.id)
-    .map((p) => [p.name, p.email, p.phone, p.has_photo ? 'Yes' : 'No', when(p.created), when(p.completed), p.cert_no, p.delivery].map(cell).join(','));
+    .map((p) => [p.name, p.email, p.phone, p.has_photo ? 'Yes' : 'No', when(p.created), when(p.completed), p.cert_no, p.delivery, p.checked_in ? 'Yes' : 'No'].map(cell).join(','));
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="participants.csv"' });
-  res.send('﻿' + ['Name,Email,Phone,Photo,Registered,Completed,Certificate no.,Delivery', ...rows].join('\r\n'));
+  res.send('﻿' + ['Name,Email,Phone,Photo,Registered,Completed,Certificate no.,Delivery,Checked in', ...rows].join('\r\n'));
 });
 admin.get('/trainings/:id/qr.png', async (req, res) => {
   const t = getT(req.params.id);
