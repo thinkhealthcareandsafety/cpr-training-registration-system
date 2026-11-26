@@ -263,7 +263,7 @@ $('#newT').onclick = () => formDialog('New training', [['title', 'Training name'
 // ---- forms ----
 const IMG = { logo1: ['Left logo on the website', 'image/png', 1100], logo2: ['Middle logo on the website', 'image/png', 1100], logo3: ['Right logo on the website', 'image/png', 1100] };
 function fillForms() {
-  const t = T(), link = `${S.base}/r/${t.slug}`, s = S.settings;
+  const t = T(), link = S.permanent, s = S.settings;
   $('#link').textContent = link;
   $('#open').href = link;
   $('#copy').onclick = () => copy(link);

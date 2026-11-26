@@ -321,7 +321,7 @@ admin.get('/state', (req, res) => {
       LEFT JOIN participants p ON p.training_id=t.id GROUP BY t.id ORDER BY t.created DESC, t.id DESC`).all(),
     settings: { ...s, mailPassSet: Boolean(mailPass) }, mailReady: mail.configured(full),
     images: Object.fromEntries(IMAGES.map((k) => [k, Boolean(brandFile(k))])),
-    base: baseUrl(req),
+    base: baseUrl(req), permanent: PERMANENT,
   });
 });
 function cleanTraining(b) {
@@ -429,10 +429,12 @@ admin.get('/trainings/:id/export.csv', (req, res) => {
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="participants.csv"' });
   res.send('﻿' + ['Name,Email,Phone,Photo,Registered,Completed,Certificate no.,Delivery,Checked in', ...rows].join('\r\n'));
 });
+// The printed QR code must survive restarts, so it uses the permanent GitHub Pages link.
+const PERMANENT = process.env.PERMANENT_URL || 'https://thinkhealthcareandsafety.github.io/cpr-training-registration-system/';
 admin.get('/trainings/:id/qr.png', async (req, res) => {
   const t = getT(req.params.id);
   if ('download' in req.query) res.set('Content-Disposition', 'attachment; filename="registration-qr.png"');
-  res.type('png').send(await QRCode.toBuffer(`${baseUrl(req)}/r/${t.slug}`, { width: 1000, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#003A5C', light: '#FFFFFF' } }));
+  res.type('png').send(await QRCode.toBuffer(PERMANENT, { width: 1000, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#003A5C', light: '#FFFFFF' } }));
 });
 admin.put('/settings', (req, res) => {
   const b = req.body || {}, next = [];
