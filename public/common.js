@@ -53,7 +53,7 @@ export function drawCert(box, d) {
     const items = layout({ name: d.name, photo: Boolean(d.photo), watermark: d.brand.watermark }, measure);
     const src = (k) => (k === 'photo' ? d.photo : `/static/art/${k}.png?v=6`);
     box.replaceChildren(svgEl('svg', { viewBox: `0 0 ${SHEET.w} ${SHEET.h}`, role: 'img', 'aria-label': 'Certificate preview' },
-      svgEl('image', { href: '/static/art/cert.jpg?v=10', width: SHEET.w, height: SHEET.h }),
+      svgEl('image', { href: '/static/art/cert.jpg?v=11', width: SHEET.w, height: SHEET.h }),
       ...items.map((i) => {
         const transform = i.rot ? `rotate(${i.rot} ${i.cx} ${i.cy})` : null;
         if (i.type === 'image') return svgEl('image', { href: src(i.key), x: i.x, y: i.y, width: i.w, height: i.h, preserveAspectRatio: i.cover ? 'xMidYMin slice' : 'xMidYMid meet', transform });
