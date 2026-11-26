@@ -269,7 +269,7 @@ app.get('/api/find/:slug', limit('find', 400, 600000), (req, res) => {
   if (term.replace(/\s/g, '').length < 3) return res.json([]);
   const like = '%' + term.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
   res.json(q("SELECT id, name, email FROM participants WHERE training_id=? AND checked_in=0 AND lower(name) LIKE ? ESCAPE '\\' ORDER BY name LIMIT 6").all(t.id, like)
-    .map((p) => ({ id: p.id, name: p.name, hint: maskEmail(p.email) })));
+    .map((p) => ({ id: p.id, name: p.name, hint: maskEmail(p.email), email: p.email })));
 });
 const byToken = (req) => {
   const p = q('SELECT * FROM participants WHERE token=?').get(req.params.token);

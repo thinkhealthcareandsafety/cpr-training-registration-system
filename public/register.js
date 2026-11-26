@@ -41,11 +41,12 @@ $('#findName').addEventListener('input', () => {
 function pick(p) {
   picked = p;
   $('#name').value = p.name;
+  $('#email').value = p.email;
   draw();
   $('#found').replaceChildren();
   $('#findName').value = '';
-  $('#foundHint').textContent = `Found you. Now enter your email (${p.hint}) to confirm, then press Register.`;
-  $('#email').focus();
+  $('#foundHint').textContent = 'Found you. Check your name and email, tick the box, then press Register.';
+  $('#consent').focus();
 }
 // Organisers sign in from this same page and go to the dashboard.
 $('#orgLogin').onclick = async () => {
