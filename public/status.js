@@ -31,7 +31,7 @@ function render(d) {
   drawCert($('#cert'), { ...d, photo: photoUrl });
   $('#state').classList.toggle('done', d.completed);
   $('#stTitle').textContent = d.completed ? `Congratulations, ${niceName(d.name)}` : `You are registered, ${niceName(d.name)}`;
-  $('#stMsg').textContent = !d.completed ? `Next, go to the CPR station. Our team takes your photo, and your certificate is emailed to ${d.email} once it is added.`
+  $('#stMsg').textContent = !d.completed ? `Next, go to the CPR training. Our teammate will click your photo while you perform CPR, and your certificate will be emailed to ${d.email}.`
     : d.sent ? `Your certificate was emailed to ${d.email}. Check the spam folder too. You can also download it here.`
       : d.sending ? `Your certificate is being emailed to ${d.email}. You can also download it here.` : 'Your certificate is ready to download.';
   $('#files').hidden = !d.completed;
