@@ -19,7 +19,8 @@ function setErr(field, msg) {
 }
 function clear() {
   $('#err').textContent = '';
-  for (const f of document.querySelectorAll('.field')) { f.classList.remove('bad'); $('.err', f).textContent = ''; }
+  // Only the registration form's fields; the organiser login box has its own messages.
+  for (const f of document.querySelectorAll('#form .field')) { f.classList.remove('bad'); const e = $('.err', f); if (e) e.textContent = ''; }
 }
 
 $('#name').addEventListener('input', draw);
