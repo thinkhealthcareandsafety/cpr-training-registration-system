@@ -1,0 +1,23 @@
+# Render Blueprint: Dashboard > New > Blueprint > pick this repository.
+services:
+  - type: web
+    name: cpr-training-registration-system
+    runtime: node
+    plan: starter            # the free plan blocks email and erases data, so a paid plan is required
+    region: singapore        # closest Render region to India
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /var/data
+      - key: ADMIN_PASSWORD
+        sync: false          # Render asks for it during setup; used for the first sign-in
+    disk:
+      name: registration-data
+      mountPath: /var/data   # participants, photos, certificates and settings live here and survive restarts
+      sizeGB: 1
