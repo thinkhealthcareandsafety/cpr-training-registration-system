@@ -80,6 +80,10 @@ input[type=color] { padding: 4px; }
 .cam video.mirror { transform: scaleX(-1); }
 .cam .view::after { content: ''; position: absolute; inset: 0; border: 5px solid #fff; pointer-events: none; }
 .cam .row { justify-content: center; }
+.cam .view.editing { cursor: grab; touch-action: none; }
+.cam .view.editing:active { cursor: grabbing; }
+.cam canvas.edit { width: 100%; height: 100%; display: block; }
+.edtools { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; width: min(100%, 440px); justify-self: center; font-size: 15px; }
 
 /* status */
 .state { padding: 14px 16px; border-radius: 6px; background: var(--warnbg); }
