@@ -116,7 +116,7 @@ function takePhoto(p) {
   const save = el('button', { type: 'button', class: 'btn go wide', hidden: true, onclick: () => send({ photo, replace: Boolean(p.completed) }) }, p.completed ? 'Replace photo and email again' : 'Save photo and email certificate');
   const saved = el('button', { type: 'button', class: 'btn wide', hidden: !p.has_photo || Boolean(p.completed), onclick: () => send({ useSaved: true }) }, 'Use the photo already saved');
   const cancel = el('button', { type: 'button', class: 'btn wide', onclick: () => d.close() }, 'Cancel');
-  const cam = camera(box, (x) => { photo = x; save.hidden = !x; if (x) save.scrollIntoView({ block: 'nearest' }); }, 'environment');
+  const cam = camera(box, (x) => { photo = x; save.hidden = !x; if (x) save.scrollIntoView({ block: 'nearest' }); }, 'environment', true);
   const d = dialog(el('div', { class: 'stack' }, el('div', {}, el('h2', {}, niceName(p.name)), el('p', { class: 'hint link' }, [p.phone && '+' + p.phone, p.email].filter(Boolean).join(', '))), box, err, save, saved, cancel));
   d.addEventListener('close', () => cam.idle(), { once: true });
 }

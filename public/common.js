@@ -79,28 +79,33 @@ function toJpeg(src, w, h, mirror, up = 0.5) {
 }
 
 /** Live camera. onPhoto receives a JPEG data URL, or null when the photo is cleared. */
-export function camera(box, onPhoto, facing = 'user') {
+export function camera(box, onPhoto, facing = 'user', upload = false) {
   let stream = null, run = 0;
   const stop = () => { run++; stream?.getTracks().forEach((t) => t.stop()); stream = null; };
   // Browsers opened inside other apps can refuse the live camera; the phone's camera app then takes over.
   const file = el('input', { type: 'file', accept: 'image/*', hidden: true });
   file.setAttribute('capture', facing);
-  file.addEventListener('change', () => {
-    const f = file.files[0];
+  // Without "capture", the same picker opens the computer's files instead of the camera.
+  const pick = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/heic,image/*', hidden: true });
+  const read = (input) => () => {
+    const f = input.files[0];
     if (!f) return;
     const url = URL.createObjectURL(f);
     const im = new Image();
     im.onload = () => { done(toJpeg(im, im.naturalWidth, im.naturalHeight, false, 0.2)); URL.revokeObjectURL(url); };
     im.onerror = () => { idle('That photo could not be read. Try again.'); URL.revokeObjectURL(url); };
     im.src = url;
-    file.value = '';
-  });
-  const show = (...n) => box.replaceChildren(file, ...n);
+    input.value = '';
+  };
+  file.addEventListener('change', read(file));
+  pick.addEventListener('change', read(pick));
+  const show = (...n) => box.replaceChildren(file, pick, ...n);
   const button = (label, fn, cls = 'btn') => el('button', { type: 'button', class: cls, onclick: fn }, label);
   function idle(msg) {
     stop();
     show(...(msg ? [el('p', { class: 'formerr' }, msg)] : []), el('div', { class: 'row' },
       button('Capture live photo', start, 'btn primary'),
+      upload ? button('Upload from computer', () => pick.click()) : null,
       msg ? button('Use phone camera', () => file.click()) : null));
   }
   async function start() {
@@ -129,7 +134,7 @@ export function camera(box, onPhoto, facing = 'user') {
   }
   function done(data) {
     stop();
-    show(el('div', { class: 'view shot' }, el('img', { src: data, alt: 'Captured photo' })), el('div', { class: 'row' }, button('Retake photo', () => { onPhoto(null); start(); })));
+    show(el('div', { class: 'view shot' }, el('img', { src: data, alt: 'Captured photo' })), el('div', { class: 'row' }, button('Retake photo', () => { onPhoto(null); start(); }), upload ? button('Upload another', () => pick.click()) : null));
     onPhoto(data);
   }
   addEventListener('pagehide', stop);
