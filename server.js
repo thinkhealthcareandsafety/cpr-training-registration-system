@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { renderCertificate, assertImage } from './lib/certificate.js';
+import { renderCertificate, assertImage, streamCertificates, streamPhotos } from './lib/certificate.js';
 import { niceName } from './public/cert-layout.js';
 import * as mail from './lib/mail.js';
 
@@ -420,6 +420,24 @@ admin.post('/trainings/:id/send-waiting', (req, res) => {
   const list = q("SELECT id FROM participants WHERE training_id=? AND completed IS NOT NULL AND delivery IN ('ready','failed')").all(req.params.id);
   for (const p of list) enqueue(p.id);
   res.json({ queued: list.length });
+});
+// Everyone at once: all issued certificates, or all plain photos, each as a single PDF.
+const fileSafe = (s) => s.replace(/[^\w -]+/g, '').trim().replace(/\s+/g, '-') || 'training';
+admin.get('/trainings/:id/certificates.pdf', (req, res) => {
+  const t = getT(req.params.id);
+  const people = q('SELECT * FROM participants WHERE training_id=? AND completed IS NOT NULL ORDER BY name COLLATE NOCASE').all(t.id)
+    .map((p) => ({ name: p.name, photo: p.has_photo && fs.existsSync(photoFile(p)) ? photoFile(p) : null }));
+  if (!people.length) return res.status(404).type('txt').send('No certificates have been issued for this training yet.');
+  res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${fileSafe(t.title)}-all-certificates.pdf"` });
+  streamCertificates(res, getSettings(), t.title, people);
+});
+admin.get('/trainings/:id/photos.pdf', (req, res) => {
+  const t = getT(req.params.id);
+  const people = q('SELECT * FROM participants WHERE training_id=? AND has_photo=1 ORDER BY name COLLATE NOCASE').all(t.id)
+    .filter((p) => fs.existsSync(photoFile(p))).map((p) => ({ name: p.name, email: p.email, photo: photoFile(p) }));
+  if (!people.length) return res.status(404).type('txt').send('No photos have been added for this training yet.');
+  res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${fileSafe(t.title)}-all-photos.pdf"` });
+  streamPhotos(res, getSettings(), t.title, people);
 });
 admin.get('/trainings/:id/export.csv', (req, res) => {
   const cell = (v) => { let x = String(v ?? ''); if (/^[=+\-@\t\r]/.test(x)) x = "'" + x; return `"${x.replace(/"/g, '""')}"`; };

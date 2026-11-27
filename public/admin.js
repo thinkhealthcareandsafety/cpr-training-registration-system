@@ -270,6 +270,8 @@ function fillForms() {
   $('#qr').src = `${A}/trainings/${t.id}/qr.png?v=${encodeURIComponent(S.base)}`;
   $('#qrdl').href = `${A}/trainings/${t.id}/qr.png?download`;
   $('#csv').href = `${A}/trainings/${t.id}/export.csv`;
+  $('#allCerts').href = `${A}/trainings/${t.id}/certificates.pdf`;
+  $('#allPhotos').href = `${A}/trainings/${t.id}/photos.pdf`;
   $('#ttitle').value = t.title;
   $('#tdate').value = t.date;
   $('#tvenue').value = t.venue;
